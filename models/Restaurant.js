@@ -5,7 +5,7 @@ const restaurantSchema = new mongoose.Schema({
   address: { type: String, required: true },
   province: String,
   category: String,
-  images: [{ type: String }],  // ✅ URL รูปภาพ
+  images: [String],
   avgRating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
   ratings: [{
@@ -17,3 +17,5 @@ const restaurantSchema = new mongoose.Schema({
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 });
 
+restaurantSchema.index({ name: 'text', address: 'text' });
+module.exports = mongoose.model('Restaurant', restaurantSchema);

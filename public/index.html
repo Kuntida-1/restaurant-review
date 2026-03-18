@@ -147,7 +147,7 @@
       <p>ค้นหาร้านอร่อยใกล้บ้านคุณ</p>
       <div id="userStatus" class="user-info" style="display:none;">
         <strong>สวัสดี <span id="username"></span>!</strong>
-        <br><small>✅ เข้าสู่ระบบแล้ว</small>
+        <br><small>ยินดีต้อนรับ</small>
         <br><button class="secondary danger" onclick="logout()">🚪 ออกจากระบบ</button>
       </div>
     </div>
@@ -155,7 +155,7 @@
     <!-- Search -->
     <div class="search-box">
       <div class="search-row">
-        <input id="searchInput" placeholder="🔍 ค้นหาชื่อร้าน...">
+        <input id="searchInput" placeholder=" ค้นหาชื่อร้าน...">
         <select id="province">
           <option value="">ทุกจังหวัด</option>
           <option value="ชลบุรี">ชลบุรี</option>
@@ -208,7 +208,6 @@
 <div id="add-review" class="section">
   <div class="form-container" style="max-width:600px;">
     <h2>➕ เพิ่มร้านอาหารใหม่</h2>
-    
     <input id="reviewName" placeholder="ชื่อร้าน">
     <input id="reviewAddress" placeholder="ที่อยู่">
     <select id="reviewProvince">
@@ -236,6 +235,7 @@
     <button class="secondary" onclick="showSection('home')">🏠 กลับ</button>
   </div>
 </div>
+
 
 <div id="ratingModal" class="rating-modal">
   <div class="modal-content">
@@ -599,7 +599,135 @@ async function addRestaurant() {
   }
 }
 
-let currentDetailRestaurant = null;
+
+// แก้ไขร้าน
+async function editRestaurant(restaurantId) {
+  const name = prompt('ชื่อร้านใหม่:');
+  const address = prompt('ที่อยู่ใหม่:');
+  
+  if (!name || !address) return;
+  
+  try {
+    const response = await fetch(`/restaurants/${restaurantId}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, address })
+    });
+    
+    if (response.ok) {
+      alert('✅ แก้ไขสำเร็จ!');
+      loadRestaurants();
+    } else {
+      alert('❌ ไม่สามารถแก้ไขได้');
+    }
+  } catch (error) {
+    alert('❌ เกิดข้อผิดพลาด');
+  }
+}
+
+// แก้ไข addRestaurant()
+async function addRestaurant() {
+  if (!token) {
+    alert('❌ กรุณาเข้าสู่ระบบ');
+    showSection('login');
+    return;
+  }
+  
+  const name = document.getElementById('reviewName').value;
+  const address = document.getElementById('reviewAddress').value;
+  const province = document.getElementById('reviewProvince').value;
+  const category = document.getElementById('reviewCategory').value;
+  const initialRating = document.querySelector('input[name="initialRating"]:checked').value;
+  
+  if (!name || !address) {
+    alert('กรุณากรอกชื่อร้านและที่อยู่');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/restaurants', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, address, province, category, initialRating: parseInt(initialRating) })
+    });
+    
+    if (response.ok) {
+      alert('✅ เพิ่มร้านสำเร็จ!');
+      showSection('home');
+      loadRestaurants();
+    }
+  } catch (error) {
+    alert('❌ เกิดข้อผิดพลาด');
+  }
+}
+let currentRestaurantId = null;
+let currentRating = 5;
+
+// Quick Rate
+function quickRate(restaurantId) {
+  currentRestaurantId = restaurantId;
+  document.getElementById('ratingModal').classList.add('active');
+  updateRatingStars(currentRating);
+}
+
+// Update Stars Visual
+function updateRatingStars(rating) {
+  currentRating = rating;
+  const stars = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
+  document.getElementById('ratingStars').innerHTML = stars;
+}
+
+// Click Stars to Rate
+document.getElementById('ratingStars').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const starWidth = rect.width / 5;
+  const rating = Math.ceil((x / starWidth));
+  updateRatingStars(rating);
+});
+
+// Submit Rating
+async function submitRating() {
+  if (!token || !currentRestaurantId) return;
+  
+  const comment = document.getElementById('ratingComment').value;
+  
+  try {
+    const response = await fetch(`/restaurants/${currentRestaurantId}/rate`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ rating: currentRating, comment })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      alert(`✅ ขอบคุณสำหรับคะแนน ${currentRating} ดาว!\n⭐ คะแนนเฉลี่ยใหม่: ${data.avgRating}`);
+      closeRatingModal();
+      loadRestaurants();
+    } else {
+      alert('❌ ' + data.error);
+    }
+  } catch (error) {
+    alert('❌ เกิดข้อผิดพลาด');
+  }
+}
+
+function closeRatingModal() {
+  document.getElementById('ratingModal').classList.remove('active');
+  document.getElementById('ratingComment').value = '';
+  currentRating = 5;
+}
+
 
 // เข้าร้าน
 function showRestaurantDetail(restaurantId, restaurantName) {
@@ -663,12 +791,11 @@ async function loadRestaurantDetail(restaurantId) {
 
 // เพิ่มใน loadRestaurants() - ปุ่ม "ดูรีวิวทั้งหมด"
 container.innerHTML = restaurants.map(restaurant => `
-  <div class="card" onclick="showRestaurantDetail('${restaurant._id}', '${restaurant.name}')">
-    <!-- Card content เดิม -->
-    <div style="cursor:pointer;" onclick="event.stopPropagation()">
-      <!-- ปุ่มให้คะแนน -->
-    </div>
-  </div>
+
+  <button onclick="quickRate('${restaurant._id}')" 
+        class="rate-btn" data-restaurant-id="${restaurant._id}">
+  ⭐ ให้คะแนน
+</button>
 `).join('');
 
   </script>
@@ -723,6 +850,42 @@ container.innerHTML = restaurants.map(restaurant => `
     </div>
   </div>
 </div>
+
+<script>
+// แก้ปุ่มให้คะแนนทั้งหมด
+document.addEventListener('DOMContentLoaded', function() {
+  // ปุ่มให้คะแนนทุกปุ่ม
+  document.querySelectorAll('.rate-btn, [onclick*="rate"], button[data-rate]').forEach(btn => {
+    btn.onclick = async function(e) {
+      e.preventDefault();
+      
+      const restaurantId = this.dataset.id || this.dataset.restaurantId || '1';
+      const rating = 5; // คงที่ 5 ดาว
+      
+      console.log('⭐ กำลังให้คะแนนร้าน:', restaurantId);
+      
+      try {
+        const response = await fetch(`/restaurants/${restaurantId}/rate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating, comment: 'ดีมาก!' })
+        });
+        
+        const data = await response.json();
+        console.log('✅ ผลลัพธ์:', data);
+        alert('ให้คะแนนสำเร็จ! ⭐ ' + data.avgRating);
+        location.reload();
+      } catch (error) {
+        console.error('❌ Error:', error);
+        alert('เกิดข้อผิดพลาด!');
+      }
+    };
+  });
+  
+  console.log('✅ Rating script loaded!');
+});
+</script>
+
 
 </body>
 </html>
